@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>webmap201</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="src/bootstrap-5.3.8-dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="src/plugins/Leaflet.PolylineMeasure.css">
+    <link rel="stylesheet" href="src/plugins/L.Control.Sidebar.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-styleeditor@0.1.9/dist/css/Leaflet.StyleEditor.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
+    <script src="src/plugins/Leaflet.PolylineMeasure.js"></script>
+    <script src="src/plugins/easy-button.js"></script>
+    <script src="src/plugins/L.Control.Sidebar.js"></script>
+    <script src="src/plugins/leaflet-providers.js"></script>
+    <script src="src/plugins/leaflet.ajax.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-styleeditor@0.1.9/dist/javascript/Leaflet.StyleEditor.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-styleeditor@0.1.9/dist/javascript/Leaflet.StyleForms.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+    <style>
+        #mapdiv {
+            height: 100vh;
+        }
+        .col-md-3 {
+            padding: 10px;
+        }
+        .btn-block {
+            margin-bottom: 5px;
+        }
+        .legend {
+            background: white;
+            padding: 10px 14px;
+            border-radius: 8px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.2);
+            line-height: 1.4em;
+            font-size: 14px;
+        }
+        .legend h4 {
+            margin-top: 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        .legend i {
+            width: 16px;
+            height: 16px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.8;
+            border: 1px solid #555;
+        }
+        .legend span {
+            line-height: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div id="side-bar" class="col-md-3">
+                <button id="Button_locate" class="btn btn-primary btn-block">Locate</button>
+            </div>
+            <div id="mapdiv" class="col-md-12"></div>
+        </div>
+    </div>
+
+    <script>
+        var mymap, lyrOSM, LyrEsriImagery, LyrTopo, LyrOutdoor, LyrStamen;
+        var FutastreetLight, Futa_Boundary, myCurrentlocation;
+
+        $(document).ready(function() {
+            mymap = L.map('mapdiv', {
+                center: [9.0, 8.0],
+                zoom: 6
+            });
+
+            lyrOSM = L.tileLayer.provider('OpenStreetMap.Mapnik').addTo(mymap);
+            LyrEsriImagery = L.tileLayer.provider('Esri.WorldImagery');
+            LyrTopo = L.tileLayer.provider('OpenTopoMap');
+            LyrStamen = L.tileLayer.provider('Stadia.StamenTerrain');
+            LyrOutdoor = L.tileLayer.provider('Thunderforest.Outdoors');
+
+            FutastreetLight = L.geoJSON.ajax('data/Streetlight_qgis.geojson', {
+                pointToLayer: returnStreetLight
+            }).addTo(mymap);
+
+            FutastreetLight.on('data:loaded', function() {
+                mymap.fitBounds(FutastreetLight.getBounds());
+            });
+
+            Futa_Boundary = L.geoJSON.ajax('data/FutaBD.geojson', {
+                style: function() {
+                    return {
+                        color: 'black',
+                        weight: 2.5,
+                        fillOpacity: 0
+                    };
+                }
+            }).addTo(mymap);
+
+            var baseMaps = {
+                "Open Street Map": lyrOSM,
+                "Esri Satellite Map": LyrEsriImagery,
+                "Topo Map": LyrTopo,
+                "Outdoor Map": LyrOutdoor,
+                "Stamen Terrain": LyrStamen
+            };
+
+            var overlayMaps = {
+                "FUTA Street Light": FutastreetLight,
+                "FUTA Boundary": Futa_Boundary
+            };
+
+            L.control.layers(baseMaps, overlayMaps).addTo(mymap);
+            L.control.scale({ position: 'bottomleft', imperial: false }).addTo(mymap);
+
+            $("#Button_locate").click(function() {
+                mymap.locate();
+            });
+
+            mymap.on('locationfound', function(e) {
+                if (myCurrentlocation) {
+                    myCurrentlocation.remove();
+                }
+                myCurrentlocation = L.circle(e.latlng, { radius: e.accuracy / 2 }).addTo(mymap);
+                mymap.setView(e.latlng, 16);
+            });
+
+            mymap.on('locationerror', function() {
+                alert('Location not found');
+            });
+
+            var legend = L.control({ position: "bottomright" });
+            legend.onAdd = function(map) {
+                var div = L.DomUtil.create("div", "legend");
+                div.innerHTML += "<h4>Legend</h4>";
+                div.innerHTML += '<i style="background: red"></i><span>New Street Light</span><br>';
+                div.innerHTML += '<i style="background: brown"></i><span>Old Street Light</span><br>';
+                div.innerHTML += '<i style="background: green"></i><span>Proposed Street Light</span><br>';
+               
+                div.innerHTML += '<hr>';
+                div.innerHTML += '<i style="background: transparent; border: 2px solid black"></i><span>FUTA Boundary</span><br>';
+                return div;
+            };
+            legend.addTo(mymap);
+        });
+
+        function returnStreetLight(Json, latlng) {
+            var attribute = Json.properties;
+            var AgeColour;
+            if (attribute.Age === 'Proposed') {
+                AgeColour = 'green';
+            } else if (attribute.Age === 'old') {
+                AgeColour = 'brown';
+            } else if (attribute.Age === 'new') {
+                AgeColour = 'red';
+            } else {
+                AgeColour = 'grey';
+            }
+
+            return L.circleMarker(latlng, {
+                radius: 2,
+                color: AgeColour,
+                opacity: 0.8,
+                fillColor: AgeColour,
+                fillOpacity: 0.6
+            }).bindTooltip(
+                "<div style='line-height:1.3em;'>" +
+                "<strong>Street Light ID:</strong> " + attribute.OBJECTID + "<br>" +
+                "<strong>Age:</strong> " + attribute.Age +
+                "</div>"
+            );
+        }
+    </script>
+</body>
+</html>
